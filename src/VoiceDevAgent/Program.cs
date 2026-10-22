@@ -32,18 +32,6 @@ PiperClient piper = new(piperHttp);
 
 try
 {
-    await piper.SynthesizeAsync("ready", CancellationToken.None);
-    if (!typed)
-        await whisper.TranscribeAsync(Wav.Encode(new short[Microphone.SampleRate / 2], Microphone.SampleRate), null, "en", CancellationToken.None);
-}
-catch (HttpRequestException ex)
-{
-    Console.Error.WriteLine($"Start the containers first (docker compose up -d): {ex.Message}");
-    return 1;
-}
-
-try
-{
     PortAudio.Initialize();
 }
 catch (Exception ex) when (ex is PortAudioException or DllNotFoundException)
@@ -63,6 +51,20 @@ try
         return 1;
     }
     if (!devices.HasOutput) Console.WriteLine("No speakers or headphones found: replies are printed, not spoken.");
+
+    // Check only the containers this session will call: Piper if there is something to
+    // play through, Whisper if there is a microphone to listen to.
+    try
+    {
+        if (devices.HasOutput) await piper.SynthesizeAsync("ready", CancellationToken.None);
+        if (!typed)
+            await whisper.TranscribeAsync(Wav.Encode(new short[Microphone.SampleRate / 2], Microphone.SampleRate), null, "en", CancellationToken.None);
+    }
+    catch (HttpRequestException ex)
+    {
+        Console.Error.WriteLine($"Start the containers first (docker compose up -d): {ex.Message}");
+        return 1;
+    }
 
     VoiceAgent agent = new(new AnthropicClient(), repo);
     Console.WriteLine(typed ? "Type a request, empty line to quit." : "Enter to talk, Enter again to stop. Ctrl+C to quit.");

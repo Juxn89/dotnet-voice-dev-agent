@@ -32,9 +32,10 @@ Both services listen only on `127.0.0.1`. Their addresses are hard-coded in `Pro
 ## One turn, end to end
 
 1. **Startup** (once). With no repository argument the app exits with code 2. It exits with code 1 if
-   `ANTHROPIC_API_KEY` is unset or a container does not answer: it synthesizes "ready" and, in voice mode,
-   transcribes half a second of silence. Then PortAudio is initialized and the default devices are checked: voice
-   mode needs a microphone, and without speakers the replies are only printed.
+   `ANTHROPIC_API_KEY` is unset. Then PortAudio is initialized and the default devices are checked: voice mode
+   needs a microphone, and without speakers the replies are only printed. Last, it checks only the containers
+   the session will call, and exits with code 1 if one doesn't answer: it synthesizes "ready" if there is an
+   output device and, in voice mode, transcribes half a second of silence.
 2. **Capture.** Enter starts a PortAudio input stream, and the next Enter stops it. The audio callback only
    copies samples into an unbounded `Channel`, so it never blocks the audio thread. The samples become a WAV in
    Whisper's own format (16 kHz, mono, 16-bit), so nothing is resampled.
