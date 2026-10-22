@@ -30,6 +30,12 @@ yet, so releases are listed by date.
 
 ### Fixed
 
+- Without speakers or headphones, the Piper container is no longer required at startup. Its check now runs after
+  the devices are detected, and only when there is an output device.
+- Build diagnostics inside the repository are shown relative to it even when the repository path was given as
+  `.`, as another relative path, or with a trailing separator. A sibling directory whose name starts with the
+  repository's is no longer treated as part of it.
+
 - `git_status` reported the behind count with a minus sign (`-1 behind`), because git writes it as `-<n>`.
 - A missing, busy or unplugged microphone or output device no longer ends the session with a stack trace.
   Device failures are reported as `AudioDeviceException` and the session continues. At startup, a missing

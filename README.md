@@ -96,6 +96,21 @@ benchmark. The articles have the full tables.
 - **The exit code is the verdict.** `RunAsync` returns it with the output, and a non-zero exit with no parsed
   error still reads as a failure.
 
+## Development
+
+```bash
+dotnet test
+```
+
+The tests cover the logic that needs no microphone, containers or API key: the summaries the tools return,
+silence detection, the spoken-length guard, WAV handling and the validation of the model's tool arguments.
+[`ARCHITECTURE.md`](ARCHITECTURE.md) explains how the pieces fit together, and
+[`CHANGELOG.md`](CHANGELOG.md) lists what changed.
+
+If you use [Claude Code](https://claude.com/claude-code), [`.claude/skills`](.claude/skills) has skills for this
+repository: `/run-agent` (a smoke test with the real containers), `/add-tool` (adding a tool safely),
+`/bump-images` (updating the pinned containers) and `/update-changelog`.
+
 ## License
 
 [MIT](LICENSE)
