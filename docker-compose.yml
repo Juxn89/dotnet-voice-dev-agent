@@ -1,0 +1,18 @@
+services:
+  whisper:
+    # v1.9.5. The image is tagged by commit; ":main" moves every day.
+    image: ghcr.io/ggml-org/whisper.cpp:main-d1be6fde11ac6e0407606b4e42fe72d34add8037
+    # The image's entrypoint is `bash -c`, which runs only its FIRST argument. A plain
+    # string gets split into words, so every flag after "whisper-server" is silently
+    # dropped and it starts on the image's bundled model, bound to 127.0.0.1.
+    # A one-element list keeps the whole command line as that first argument.
+    command: ["whisper-server --host 0.0.0.0 --port 8080 --model /models/ggml-${WHISPER_MODEL:-tiny.en}.bin --threads 4"]
+    volumes:
+      - ./models:/models:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  piper:
+    build: ./piper
+    ports:
+      - "127.0.0.1:5000:5000"

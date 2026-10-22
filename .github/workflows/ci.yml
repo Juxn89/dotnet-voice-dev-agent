@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      # The compose file the README tells readers to start. Validating it catches the
+      # `bash -c` entrypoint trap: a malformed command still parses, so check what it resolves to.
+      - name: Compose resolves whisper-server as a single command
+        run: |
+          docker compose config --format json \
+            | jq -e '.services.whisper.command | length == 1 and (.[0] | contains("--model /models/"))'

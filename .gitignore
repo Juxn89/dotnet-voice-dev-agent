@@ -1,0 +1,8 @@
+bin/
+obj/
+.vs/
+.vscode/
+*.user
+.env
+# Whisper models are downloaded, not committed (75 MB to 575 MB each).
+models/*.bin
