@@ -217,7 +217,7 @@ sealed class VoiceAgent(AnthropicClient client, string repo)
     /// The prompt asks for short replies; this makes sure of it. A reply too long to listen
     /// to goes to the screen, and only its first sentence is spoken.
     /// </summary>
-    static string GuardSpoken(string spoken, Action<string> screen)
+    internal static string GuardSpoken(string spoken, Action<string> screen)
     {
         string[] words = spoken.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (words.Length <= MaxSpokenWords) return spoken;

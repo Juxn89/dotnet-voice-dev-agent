@@ -11,8 +11,11 @@ static partial class DevTools
     {
         ProcessResult git = await RunAsync("git", ["status", "--porcelain=v2", "--branch"], repo, ct);
         if (git.ExitCode != 0) return $"git status failed (exit code {git.ExitCode}): {git.Output.Trim()}";
-        string output = git.Output;
+        return SummarizeStatus(git.Output);
+    }
 
+    internal static string SummarizeStatus(string output)
+    {
         string branch = "(detached)";
         int ahead = 0, behind = 0;
         List<string> changed = [], untracked = [];
@@ -29,7 +32,7 @@ static partial class DevTools
             {
                 string[] ab = line["# branch.ab ".Length..].Split(' ');
                 ahead = int.Parse(ab[0]);    // "+2"
-                behind = int.Parse(ab[1]);   // "-0"
+                behind = -int.Parse(ab[1]);  // "-0": git writes the count with a minus sign
             }
             else if (line.StartsWith("1 "))
             {
@@ -70,8 +73,11 @@ static partial class DevTools
             : ["build", "--nologo", project];
 
         ProcessResult build = await RunAsync("dotnet", args, repo, ct);
-        string output = build.Output;
+        return SummarizeBuild(build.Output, build.ExitCode, repo);
+    }
 
+    internal static string SummarizeBuild(string output, int exitCode, string repo)
+    {
         // MSBuild emits each diagnostic inline and then again in the summary block.
         Dictionary<(string, int, int, string), Diagnostic> unique = [];
 
@@ -104,8 +110,8 @@ static partial class DevTools
 
         // The exit code is the verdict; the parsed lines are only the explanation. A failure
         // with no file and line (a missing project, a bad argument) still has to read as one.
-        if (build.ExitCode != 0 && errors.Count == 0)
-            return $"Build failed (exit code {build.ExitCode}) with no file-located diagnostics. Last lines:\n" +
+        if (exitCode != 0 && errors.Count == 0)
+            return $"Build failed (exit code {exitCode}) with no file-located diagnostics. Last lines:\n" +
                    string.Join('\n', output.Split('\n', StringSplitOptions.RemoveEmptyEntries).TakeLast(10));
 
         if (errors.Count == 0 && warnings.Count == 0) return "Build succeeded with no diagnostics.";
@@ -135,41 +141,45 @@ static partial class DevTools
             string trx = Path.Combine(resultsDir, "run.trx");
             if (!File.Exists(trx)) return $"No TRX produced (exit code {run.ExitCode}) — the test project probably failed to build.";
 
-            XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
-            XDocument doc = XDocument.Load(trx);
-
-            XElement? counters = doc.Descendants(ns + "Counters").FirstOrDefault();
-            StringBuilder summary = new();
-            summary.AppendLine(
-                $"{counters?.Attribute("passed")?.Value ?? "?"}/{counters?.Attribute("total")?.Value ?? "?"} passed, " +
-                $"{counters?.Attribute("failed")?.Value ?? "?"} failed.");
-
-            foreach (XElement result in doc.Descendants(ns + "UnitTestResult")
-                                           .Where(r => (string?)r.Attribute("outcome") == "Failed")
-                                           .Take(15))
-            {
-                string name = ((string?)result.Attribute("testName") ?? "(unknown)").Split('.')[^1];
-                string message = result.Descendants(ns + "Message").FirstOrDefault()?.Value.Trim() ?? "";
-
-                // Keep only frames in the project's own code.
-                IEnumerable<string> frames = (result.Descendants(ns + "StackTrace").FirstOrDefault()?.Value ?? "")
-                    .Split('\n')
-                    .Select(f => f.Trim())
-                    .Where(f => f.Length > 0 && !f.StartsWith("at System."))
-                    .Take(3);
-
-                summary.AppendLine();
-                summary.AppendLine($"FAILED {name}");
-                foreach (string line in message.Split('\n')) summary.AppendLine($"  {line.TrimEnd('\r')}");
-                foreach (string frame in frames) summary.AppendLine($"  {frame}");
-            }
-
-            return summary.ToString();
+            return SummarizeTrx(XDocument.Load(trx));
         }
         finally
         {
             if (Directory.Exists(resultsDir)) Directory.Delete(resultsDir, recursive: true);
         }
+    }
+
+    internal static string SummarizeTrx(XDocument doc)
+    {
+        XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
+
+        XElement? counters = doc.Descendants(ns + "Counters").FirstOrDefault();
+        StringBuilder summary = new();
+        summary.AppendLine(
+            $"{counters?.Attribute("passed")?.Value ?? "?"}/{counters?.Attribute("total")?.Value ?? "?"} passed, " +
+            $"{counters?.Attribute("failed")?.Value ?? "?"} failed.");
+
+        foreach (XElement result in doc.Descendants(ns + "UnitTestResult")
+                                       .Where(r => (string?)r.Attribute("outcome") == "Failed")
+                                       .Take(15))
+        {
+            string name = ((string?)result.Attribute("testName") ?? "(unknown)").Split('.')[^1];
+            string message = result.Descendants(ns + "Message").FirstOrDefault()?.Value.Trim() ?? "";
+
+            // Keep only frames in the project's own code.
+            IEnumerable<string> frames = (result.Descendants(ns + "StackTrace").FirstOrDefault()?.Value ?? "")
+                .Split('\n')
+                .Select(f => f.Trim())
+                .Where(f => f.Length > 0 && !f.StartsWith("at System."))
+                .Take(3);
+
+            summary.AppendLine();
+            summary.AppendLine($"FAILED {name}");
+            foreach (string line in message.Split('\n')) summary.AppendLine($"  {line.TrimEnd('\r')}");
+            foreach (string frame in frames) summary.AppendLine($"  {frame}");
+        }
+
+        return summary.ToString();
     }
 
     public static async Task<ProcessResult> RunAsync(string file, string[] args, string cwd, CancellationToken ct)

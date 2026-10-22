@@ -24,6 +24,9 @@ jobs:
       - name: Build
         run: dotnet build -c Release --no-restore
 
+      - name: Test
+        run: dotnet test -c Release --no-build
+
       # The compose file the README tells readers to start. Validating it catches the
       # `bash -c` entrypoint trap: a malformed command still parses, so check what it resolves to.
       - name: Compose resolves whisper-server as a single command
