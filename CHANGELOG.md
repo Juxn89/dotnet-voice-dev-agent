@@ -2,10 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The project has no version tags
-yet, so releases are listed by date.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release has a matching `v<version>` git tag.
 
 ## [Unreleased]
+
+## [1.1.0] - 2026-10-22
 
 ### Added
 
@@ -45,7 +47,7 @@ yet, so releases are listed by date.
   Device failures are reported as `AudioDeviceException` and the session continues. At startup, a missing
   microphone in voice mode exits with a hint to use `--text`. Without speakers, replies are printed only.
 
-## 2026-10-22
+## [1.0.0] - 2026-10-22
 
 ### Changed
 
@@ -70,3 +72,7 @@ yet, so releases are listed by date.
   exports, so the target repository's `global.json` chooses the SDK (Part 1 fix).
 - The exit code decides whether a build succeeded. A non-zero exit with no parsed diagnostics is reported as a
   failure (Part 1 fix).
+
+[Unreleased]: https://github.com/Juxn89/dotnet-voice-dev-agent/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Juxn89/dotnet-voice-dev-agent/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/Juxn89/dotnet-voice-dev-agent/releases/tag/v1.0.0
