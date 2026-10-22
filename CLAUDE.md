@@ -71,6 +71,9 @@ All code is in `src/VoiceDevAgent/` (single project, no namespaces, top-level st
 
 ## Design constraints
 
+- Project skills live in `.claude/skills`. Use `add-tool` for any change to the agent's tools; it holds the
+  argument-validation rules.
+
 - Tools stay read-only on purpose (a misheard request should at worst run a build). Any tool with side effects
   must confirm in code, not via the prompt.
 - English only as configured (`.en` Whisper models, English Piper voice).

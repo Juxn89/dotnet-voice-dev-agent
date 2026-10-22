@@ -14,6 +14,8 @@ yet, so releases are listed by date.
 - `CHANGELOG.md`.
 - An xUnit test project (`tests/VoiceDevAgent.Tests`) for `IsBlank`, `GuardSpoken`, WAV encoding and decoding,
   and the `git status`, build and TRX summaries. CI runs it.
+- Claude Code skills in `.claude/skills`: `run-agent` and `bump-images` (manual only), `add-tool` and
+  `update-changelog`. Each one has explicit security rules.
 
 ### Changed
 
