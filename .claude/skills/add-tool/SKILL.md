@@ -28,8 +28,8 @@ agent. Treat every tool argument as untrusted input.
    40 changed files, 15 failures). Raw output wastes context and carries more injected text.
 5. **Keep the timeout.** `RunAsync`'s five-minute limit and process-tree kill apply to every tool.
 
-**Known gap:** `dotnet_build`'s `project` argument goes to `dotnet build` without rule 3. Fix it, or at least
-point it out, whenever you work in this area.
+`DevTools.ResolveProject` (used by `dotnet_build`) is the reference implementation of rule 3, and
+`ResolveProjectTests` shows the cases to cover.
 
 ## Steps
 

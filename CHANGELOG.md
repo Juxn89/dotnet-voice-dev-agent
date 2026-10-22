@@ -22,6 +22,12 @@ yet, so releases are listed by date.
 - `DevTools` parsing moved into pure `SummarizeStatus`, `SummarizeBuild` and `SummarizeTrx` functions so it can
   be tested without running processes.
 
+### Security
+
+- `dotnet_build` validates its `project` argument before running anything. A value that starts with `-` (option
+  injection such as `-bl:<path>` or `-p:...`), resolves outside the repository, is not a project or solution,
+  or does not exist is refused, and the reason goes back to the model as an error.
+
 ### Fixed
 
 - `git_status` reported the behind count with a minus sign (`-1 behind`), because git writes it as `-<n>`.

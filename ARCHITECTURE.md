@@ -85,6 +85,10 @@ output to what the model needs:
 `DevTools.RunAsync` is the only place that starts a process:
 
 - Arguments go through `ProcessStartInfo.ArgumentList`. A command string is never built from model input.
+- `ArgumentList` stops shell injection, not option injection, so model-supplied values are validated before
+  they get here. `ResolveProject` accepts `dotnet_build`'s `project` only if it doesn't start with `-`,
+  resolves inside the repository, has a project or solution extension and exists. It passes on the full path;
+  a refusal goes back to the model as an `is_error` result.
 - `MSBuild*` environment variables are removed. `dotnet run` exports them for the SDK that built the agent, and
   without this a child build would ignore the target repository's `global.json`.
 - stdout and stderr are combined, there is a **5-minute** timeout, and the whole process tree is killed when it

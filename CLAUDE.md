@@ -59,7 +59,8 @@ All code is in `src/VoiceDevAgent/` (single project, no namespaces, top-level st
 - **`DevTools.cs`** — the read-only tools (`git_status`, `dotnet_build`, `dotnet_test`) plus `RunAsync`. Tools
   condense raw output for the model: porcelain v2 parsing, deduplicated MSBuild diagnostics (errors first, capped
   at 50), TRX parsing for test failures with only own-code frames. The exit code is the verdict even if nothing
-  parsed. `RunAsync` uses `ArgumentList` (never a concatenated command string), strips inherited `MSBuild*` env
+  parsed. `RunAsync` uses `ArgumentList` (never a concatenated command string; model-supplied
+  values are validated first, e.g. `ResolveProject`), strips inherited `MSBuild*` env
   vars so the target repo's `global.json` SDK is used, and enforces a 5-minute timeout.
 - **`Speech.cs`** — thin HTTP clients: `WhisperClient` (`POST /inference`, multipart) and `PiperClient`
   (`POST /synthesize`, returns WAV).

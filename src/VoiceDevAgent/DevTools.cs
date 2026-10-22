@@ -61,11 +61,48 @@ static partial class DevTools
         return summary.ToString();
     }
 
+    static readonly string[] ProjectExtensions = [".csproj", ".fsproj", ".vbproj", ".sln", ".slnx"];
+
+    /// <summary>
+    /// The model picks the project, so the value is untrusted. ArgumentList stops shell
+    /// injection but not option injection: "-bl:C:\x.binlog" or "-p:..." would reach dotnet
+    /// as options. Returns the full path of an existing project or solution inside the repo,
+    /// or the reason the value was refused.
+    /// </summary>
+    internal static (string? Path, string? Error) ResolveProject(string repo, string project)
+    {
+        if (project.StartsWith('-')) return (null, $"\"{project}\" is not a project path.");
+
+        string full, root;
+        try
+        {
+            full = Path.GetFullPath(Path.Combine(repo, project));
+            root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(repo)) + Path.DirectorySeparatorChar;
+        }
+        catch (ArgumentException)
+        {
+            return (null, $"\"{project}\" is not a valid path.");
+        }
+
+        StringComparison comparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        if (!full.StartsWith(root, comparison)) return (null, $"\"{project}\" is outside the repository.");
+
+        if (!ProjectExtensions.Contains(Path.GetExtension(full), StringComparer.OrdinalIgnoreCase))
+            return (null, $"\"{project}\" is not a project or solution ({string.Join(", ", ProjectExtensions)}).");
+
+        if (!File.Exists(full)) return (null, $"\"{project}\" does not exist in the repository.");
+
+        return (full, null);
+    }
+
     // A source-generated regex, so the pattern is compiled at build time rather than
     // at startup. It lives in a class because a file-based app has no room for a
     // field: anything declared alongside top-level statements has to be a local, and
     // `static readonly` there is a CS0106.
 
+    /// <param name="project">A path already checked by <see cref="ResolveProject"/>, or null for the whole repo.</param>
     public static async Task<string> DotnetBuildAsync(string repo, string? project, CancellationToken ct)
     {
         string[] args = project is null

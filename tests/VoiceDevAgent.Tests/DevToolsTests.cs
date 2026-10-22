@@ -160,3 +160,80 @@ public class SummarizeTrxTests
     public void Missing_counters_read_as_unknown() =>
         Assert.StartsWith("?/? passed, ? failed.", DevTools.SummarizeTrx(Trx(null)));
 }
+
+public sealed class ResolveProjectTests : IDisposable
+{
+    // <temp>/<id>/app is the repo; <temp>/<id>/app-evil is a sibling whose name starts with it.
+    readonly string root = Path.Combine(Path.GetTempPath(), $"resolve-{Guid.NewGuid():N}");
+    readonly string repo;
+
+    public ResolveProjectTests()
+    {
+        repo = Path.Combine(root, "app");
+        foreach (string file in new[] { "app/src/App/App.csproj", "app/App.slnx", "app/src/App/Program.cs", "app-evil/Evil.csproj" })
+        {
+            string path = Path.Combine(root, file);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, "");
+        }
+    }
+
+    public void Dispose() => Directory.Delete(root, recursive: true);
+
+    [Theory]
+    [InlineData("src/App/App.csproj")]
+    [InlineData("src/App/../App/App.csproj")]
+    [InlineData("App.slnx")]
+    public void Accepts_a_project_or_solution_inside_the_repo(string project)
+    {
+        (string? path, string? error) = DevTools.ResolveProject(repo, project);
+
+        Assert.Null(error);
+        Assert.Equal(Path.GetFullPath(Path.Combine(repo, project)), path);
+    }
+
+    [Fact]
+    public void Accepts_an_absolute_path_inside_the_repo()
+    {
+        string absolute = Path.Combine(repo, "src", "App", "App.csproj");
+
+        Assert.Equal((absolute, null), DevTools.ResolveProject(repo, absolute));
+    }
+
+    [Theory]
+    [InlineData("-bl:build.binlog")]
+    [InlineData("-p:Configuration=Release")]
+    [InlineData("--source")]
+    public void Refuses_options(string project) =>
+        Assert.Contains("is not a project path", DevTools.ResolveProject(repo, project).Error);
+
+    [Theory]
+    [InlineData("../app-evil/Evil.csproj")]
+    [InlineData("src/../../app-evil/Evil.csproj")]
+    public void Refuses_paths_that_escape_the_repo_even_when_the_file_exists(string project) =>
+        Assert.Contains("outside the repository", DevTools.ResolveProject(repo, project).Error);
+
+    [Fact]
+    public void Refuses_an_absolute_path_outside_the_repo() =>
+        Assert.Contains("outside the repository",
+            DevTools.ResolveProject(repo, Path.Combine(root, "app-evil", "Evil.csproj")).Error);
+
+    [Theory]
+    [InlineData("src/App/Program.cs")]
+    [InlineData("Directory.Build.targets")]
+    [InlineData("src/App")]
+    public void Refuses_anything_that_is_not_a_project_or_solution(string project) =>
+        Assert.Contains("is not a project or solution", DevTools.ResolveProject(repo, project).Error);
+
+    [Fact]
+    public void Refuses_a_missing_project() =>
+        Assert.Contains("does not exist", DevTools.ResolveProject(repo, "src/Missing/Missing.csproj").Error);
+
+    [Fact]
+    public void Refuses_an_invalid_path() =>
+        Assert.Contains("not a valid path", DevTools.ResolveProject(repo, "src/A\0.csproj").Error);
+
+    [Fact]
+    public void The_refused_value_never_comes_back_as_a_path() =>
+        Assert.Null(DevTools.ResolveProject(repo, "-bl:build.binlog").Path);
+}
