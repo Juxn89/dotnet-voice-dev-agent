@@ -78,5 +78,3 @@ All code is in `src/VoiceDevAgent/` (single project, no namespaces, top-level st
 - Tools stay read-only on purpose (a misheard request should at worst run a build). Any tool with side effects
   must confirm in code, not via the prompt.
 - English only as configured (`.en` Whisper models, English Piper voice).
-- `.editorconfig` sets 2-space indentation for all files, but the C# sources use 4 spaces — match the existing
-  file you are editing.
