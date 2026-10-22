@@ -32,19 +32,40 @@ PiperClient piper = new(piperHttp);
 
 try
 {
-    await piper.SynthesizeAsync("ready", CancellationToken.None);
-    if (!typed)
-        await whisper.TranscribeAsync(Wav.Encode(new short[Microphone.SampleRate / 2], Microphone.SampleRate), null, "en", CancellationToken.None);
+    PortAudio.Initialize();
 }
-catch (HttpRequestException ex)
+catch (Exception ex) when (ex is PortAudioException or DllNotFoundException)
 {
-    Console.Error.WriteLine($"Start the containers first (docker compose up -d): {ex.Message}");
+    Console.Error.WriteLine($"Audio is unavailable: {ex.Message}");
     return 1;
 }
 
-PortAudio.Initialize();
 try
 {
+    // PortAudio lists devices once, at Initialize. A device plugged in later is not seen
+    // until the next run.
+    AudioDevices devices = AudioDevices.Detect();
+    if (devices.CannotStart(typed) is string reason)
+    {
+        Console.Error.WriteLine(reason);
+        return 1;
+    }
+    if (!devices.HasOutput) Console.WriteLine("No speakers or headphones found: replies are printed, not spoken.");
+
+    // Check only the containers this session will call: Piper if there is something to
+    // play through, Whisper if there is a microphone to listen to.
+    try
+    {
+        if (devices.HasOutput) await piper.SynthesizeAsync("ready", CancellationToken.None);
+        if (!typed)
+            await whisper.TranscribeAsync(Wav.Encode(new short[Microphone.SampleRate / 2], Microphone.SampleRate), null, "en", CancellationToken.None);
+    }
+    catch (HttpRequestException ex)
+    {
+        Console.Error.WriteLine($"Start the containers first (docker compose up -d): {ex.Message}");
+        return 1;
+    }
+
     VoiceAgent agent = new(new AnthropicClient(), repo);
     Console.WriteLine(typed ? "Type a request, empty line to quit." : "Enter to talk, Enter again to stop. Ctrl+C to quit.");
     bool alreadyPressed = false;
@@ -67,7 +88,16 @@ try
             }
             alreadyPressed = false;
             Console.Write("listening... ");
-            byte[] wav = await Microphone.RecordAsync(ct => Task.Run(() => Console.ReadLine(), ct), CancellationToken.None);
+            byte[] wav;
+            try
+            {
+                wav = await Microphone.RecordAsync(ct => Task.Run(() => Console.ReadLine(), ct), CancellationToken.None);
+            }
+            catch (AudioDeviceException ex)
+            {
+                Console.WriteLine($"\n  microphone failed: {ex.Message}");
+                continue;
+            }
 
             Stopwatch stt = Stopwatch.StartNew();
             try
@@ -103,6 +133,8 @@ try
         if (reply.Length == 0) continue;
 
         Console.WriteLine($"  says: \"{reply}\"");
+        if (!devices.HasOutput) continue;
+
         byte[] speech;
         try
         {
@@ -116,7 +148,14 @@ try
 
         if (typed)
         {
-            await Speaker.PlayAsync(speech, CancellationToken.None);
+            try
+            {
+                await Speaker.PlayAsync(speech, CancellationToken.None);
+            }
+            catch (AudioDeviceException ex)
+            {
+                Console.WriteLine($"  playback failed: {ex.Message}");
+            }
             continue;
         }
 
@@ -126,7 +165,16 @@ try
         Task<string?> press = Task.Run(Console.ReadLine);
         Task playback = Speaker.PlayAsync(speech, stop.Token);
         if (await Task.WhenAny(press, playback) == press) stop.Cancel();
-        await playback;
+        try
+        {
+            await playback;
+        }
+        catch (AudioDeviceException ex)
+        {
+            // The reply is already printed. Fall through: the read started above still owns
+            // the next Enter, so it must be awaited, or it would swallow the next key press.
+            Console.WriteLine($"  playback failed: {ex.Message}");
+        }
         if (!press.IsCompleted) Console.Write("  [Enter to talk] ");
         await press;
         alreadyPressed = true;

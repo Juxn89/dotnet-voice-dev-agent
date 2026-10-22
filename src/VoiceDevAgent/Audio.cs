@@ -4,12 +4,44 @@ using System.Threading.Channels;
 using PortAudioSharp;
 using PaStream = PortAudioSharp.Stream;
 
+/// <summary>
+/// No device, or PortAudio could not open, start or stop one: busy, unplugged, or a sample
+/// rate it does not support. The session reports it and keeps going.
+/// </summary>
+sealed class AudioDeviceException(string message, Exception? inner = null) : Exception(message, inner);
+
+/// <summary>The default devices PortAudio found when it was initialized.</summary>
+sealed record AudioDevices(bool HasInput, bool HasOutput)
+{
+    public static AudioDevices Detect() =>
+        new(PortAudio.DefaultInputDevice != PortAudio.NoDevice, PortAudio.DefaultOutputDevice != PortAudio.NoDevice);
+
+    /// <summary>
+    /// Why the session cannot start, or null if it can. Speakers are optional: every reply is
+    /// printed before it is spoken. A microphone is required unless the session is typed.
+    /// </summary>
+    public string? CannotStart(bool typed) =>
+        typed || HasInput ? null : "No microphone found. Connect one, or run with --text to type instead.";
+}
+
 /// <summary>Push-to-talk capture: 16 kHz, mono, 16-bit — the format Whisper wants, so nothing resamples.</summary>
 sealed class Microphone
 {
     public const int SampleRate = 16_000;
 
     public static async Task<byte[]> RecordAsync(Func<CancellationToken, Task> waitForStop, CancellationToken ct)
+    {
+        try
+        {
+            return await RecordCoreAsync(waitForStop, ct);
+        }
+        catch (PortAudioException ex)
+        {
+            throw new AudioDeviceException($"Could not use the microphone: {ex.Message}", ex);
+        }
+    }
+
+    static async Task<byte[]> RecordCoreAsync(Func<CancellationToken, Task> waitForStop, CancellationToken ct)
     {
         // The callback runs on PortAudio's audio thread. It must never wait on anything the
         // rest of the program does, so it only copies samples into an unbounded channel,
@@ -26,7 +58,7 @@ sealed class Microphone
         };
 
         int device = PortAudio.DefaultInputDevice;
-        if (device == PortAudio.NoDevice) throw new InvalidOperationException("No input device found.");
+        if (device == PortAudio.NoDevice) throw new AudioDeviceException("No input device found.");
 
         StreamParameters parameters = new()
         {
@@ -66,6 +98,18 @@ static class Speaker
 
     public static async Task PlayAsync(byte[] wav, CancellationToken ct)
     {
+        try
+        {
+            await PlayCoreAsync(wav, ct);
+        }
+        catch (PortAudioException ex)
+        {
+            throw new AudioDeviceException($"Could not use the speakers: {ex.Message}", ex);
+        }
+    }
+
+    static async Task PlayCoreAsync(byte[] wav, CancellationToken ct)
+    {
         (short[] samples, int sampleRate) = Wav.Decode(wav);
         int position = 0;
         TaskCompletionSource finished = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -91,7 +135,7 @@ static class Speaker
         };
 
         int device = PortAudio.DefaultOutputDevice;
-        if (device == PortAudio.NoDevice) throw new InvalidOperationException("No output device found.");
+        if (device == PortAudio.NoDevice) throw new AudioDeviceException("No output device found.");
 
         StreamParameters parameters = new()
         {

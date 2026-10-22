@@ -11,8 +11,11 @@ static partial class DevTools
     {
         ProcessResult git = await RunAsync("git", ["status", "--porcelain=v2", "--branch"], repo, ct);
         if (git.ExitCode != 0) return $"git status failed (exit code {git.ExitCode}): {git.Output.Trim()}";
-        string output = git.Output;
+        return SummarizeStatus(git.Output);
+    }
 
+    internal static string SummarizeStatus(string output)
+    {
         string branch = "(detached)";
         int ahead = 0, behind = 0;
         List<string> changed = [], untracked = [];
@@ -29,7 +32,7 @@ static partial class DevTools
             {
                 string[] ab = line["# branch.ab ".Length..].Split(' ');
                 ahead = int.Parse(ab[0]);    // "+2"
-                behind = int.Parse(ab[1]);   // "-0"
+                behind = -int.Parse(ab[1]);  // "-0": git writes the count with a minus sign
             }
             else if (line.StartsWith("1 "))
             {
@@ -58,11 +61,57 @@ static partial class DevTools
         return summary.ToString();
     }
 
+    static readonly string[] ProjectExtensions = [".csproj", ".fsproj", ".vbproj", ".sln", ".slnx"];
+
+    // Case-insensitive where the file system usually is.
+    static readonly StringComparison PathComparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+        ? StringComparison.OrdinalIgnoreCase
+        : StringComparison.Ordinal;
+
+    /// <summary>
+    /// The repository as a full path ending in a separator, so "." works and "/src/app" does
+    /// not also match "/src/app-evil".
+    /// </summary>
+    static string RepoRoot(string repo) =>
+        Path.TrimEndingDirectorySeparator(Path.GetFullPath(repo)) + Path.DirectorySeparatorChar;
+
+    /// <summary>
+    /// The model picks the project, so the value is untrusted. ArgumentList stops shell
+    /// injection but not option injection: "-bl:C:\x.binlog" or "-p:..." would reach dotnet
+    /// as options. Returns the full path of an existing project or solution inside the repo,
+    /// or the reason the value was refused.
+    /// </summary>
+    internal static (string? Path, string? Error) ResolveProject(string repo, string project)
+    {
+        if (project.StartsWith('-')) return (null, $"\"{project}\" is not a project path.");
+
+        string full, root;
+        try
+        {
+            full = Path.GetFullPath(Path.Combine(repo, project));
+            root = RepoRoot(repo);
+        }
+        catch (ArgumentException)
+        {
+            return (null, $"\"{project}\" is not a valid path.");
+        }
+
+        if (!full.StartsWith(root, PathComparison)) return (null, $"\"{project}\" is outside the repository.");
+
+        if (!ProjectExtensions.Contains(Path.GetExtension(full), StringComparer.OrdinalIgnoreCase))
+            return (null, $"\"{project}\" is not a project or solution ({string.Join(", ", ProjectExtensions)}).");
+
+        if (!File.Exists(full)) return (null, $"\"{project}\" does not exist in the repository.");
+
+        return (full, null);
+    }
+
     // A source-generated regex, so the pattern is compiled at build time rather than
     // at startup. It lives in a class because a file-based app has no room for a
     // field: anything declared alongside top-level statements has to be a local, and
     // `static readonly` there is a CS0106.
 
+    /// <param name="project">A path already checked by <see cref="ResolveProject"/>, or null for the whole repo.</param>
     public static async Task<string> DotnetBuildAsync(string repo, string? project, CancellationToken ct)
     {
         string[] args = project is null
@@ -70,7 +119,12 @@ static partial class DevTools
             : ["build", "--nologo", project];
 
         ProcessResult build = await RunAsync("dotnet", args, repo, ct);
-        string output = build.Output;
+        return SummarizeBuild(build.Output, build.ExitCode, repo);
+    }
+
+    internal static string SummarizeBuild(string output, int exitCode, string repo)
+    {
+        string root = RepoRoot(repo);
 
         // MSBuild emits each diagnostic inline and then again in the summary block.
         Dictionary<(string, int, int, string), Diagnostic> unique = [];
@@ -84,8 +138,8 @@ static partial class DevTools
 
             // Diagnostics anchored in the SDK's own .targets files are infrastructure
             // failures, not code failures. Keep them, but don't pretend they're yours.
-            string display = file.StartsWith(repo, StringComparison.OrdinalIgnoreCase)
-                ? Path.GetRelativePath(repo, file).Replace('\\', '/')
+            string display = file.StartsWith(root, PathComparison)
+                ? Path.GetRelativePath(root, file).Replace('\\', '/')
                 : file;
 
             Diagnostic diagnostic = new(
@@ -104,8 +158,8 @@ static partial class DevTools
 
         // The exit code is the verdict; the parsed lines are only the explanation. A failure
         // with no file and line (a missing project, a bad argument) still has to read as one.
-        if (build.ExitCode != 0 && errors.Count == 0)
-            return $"Build failed (exit code {build.ExitCode}) with no file-located diagnostics. Last lines:\n" +
+        if (exitCode != 0 && errors.Count == 0)
+            return $"Build failed (exit code {exitCode}) with no file-located diagnostics. Last lines:\n" +
                    string.Join('\n', output.Split('\n', StringSplitOptions.RemoveEmptyEntries).TakeLast(10));
 
         if (errors.Count == 0 && warnings.Count == 0) return "Build succeeded with no diagnostics.";
@@ -135,41 +189,45 @@ static partial class DevTools
             string trx = Path.Combine(resultsDir, "run.trx");
             if (!File.Exists(trx)) return $"No TRX produced (exit code {run.ExitCode}) — the test project probably failed to build.";
 
-            XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
-            XDocument doc = XDocument.Load(trx);
-
-            XElement? counters = doc.Descendants(ns + "Counters").FirstOrDefault();
-            StringBuilder summary = new();
-            summary.AppendLine(
-                $"{counters?.Attribute("passed")?.Value ?? "?"}/{counters?.Attribute("total")?.Value ?? "?"} passed, " +
-                $"{counters?.Attribute("failed")?.Value ?? "?"} failed.");
-
-            foreach (XElement result in doc.Descendants(ns + "UnitTestResult")
-                                           .Where(r => (string?)r.Attribute("outcome") == "Failed")
-                                           .Take(15))
-            {
-                string name = ((string?)result.Attribute("testName") ?? "(unknown)").Split('.')[^1];
-                string message = result.Descendants(ns + "Message").FirstOrDefault()?.Value.Trim() ?? "";
-
-                // Keep only frames in the project's own code.
-                IEnumerable<string> frames = (result.Descendants(ns + "StackTrace").FirstOrDefault()?.Value ?? "")
-                    .Split('\n')
-                    .Select(f => f.Trim())
-                    .Where(f => f.Length > 0 && !f.StartsWith("at System."))
-                    .Take(3);
-
-                summary.AppendLine();
-                summary.AppendLine($"FAILED {name}");
-                foreach (string line in message.Split('\n')) summary.AppendLine($"  {line.TrimEnd('\r')}");
-                foreach (string frame in frames) summary.AppendLine($"  {frame}");
-            }
-
-            return summary.ToString();
+            return SummarizeTrx(XDocument.Load(trx));
         }
         finally
         {
             if (Directory.Exists(resultsDir)) Directory.Delete(resultsDir, recursive: true);
         }
+    }
+
+    internal static string SummarizeTrx(XDocument doc)
+    {
+        XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
+
+        XElement? counters = doc.Descendants(ns + "Counters").FirstOrDefault();
+        StringBuilder summary = new();
+        summary.AppendLine(
+            $"{counters?.Attribute("passed")?.Value ?? "?"}/{counters?.Attribute("total")?.Value ?? "?"} passed, " +
+            $"{counters?.Attribute("failed")?.Value ?? "?"} failed.");
+
+        foreach (XElement result in doc.Descendants(ns + "UnitTestResult")
+                                       .Where(r => (string?)r.Attribute("outcome") == "Failed")
+                                       .Take(15))
+        {
+            string name = ((string?)result.Attribute("testName") ?? "(unknown)").Split('.')[^1];
+            string message = result.Descendants(ns + "Message").FirstOrDefault()?.Value.Trim() ?? "";
+
+            // Keep only frames in the project's own code.
+            IEnumerable<string> frames = (result.Descendants(ns + "StackTrace").FirstOrDefault()?.Value ?? "")
+                .Split('\n')
+                .Select(f => f.Trim())
+                .Where(f => f.Length > 0 && !f.StartsWith("at System."))
+                .Take(3);
+
+            summary.AppendLine();
+            summary.AppendLine($"FAILED {name}");
+            foreach (string line in message.Split('\n')) summary.AppendLine($"  {line.TrimEnd('\r')}");
+            foreach (string frame in frames) summary.AppendLine($"  {frame}");
+        }
+
+        return summary.ToString();
     }
 
     public static async Task<ProcessResult> RunAsync(string file, string[] args, string cwd, CancellationToken ct)

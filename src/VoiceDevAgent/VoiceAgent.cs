@@ -190,9 +190,13 @@ sealed class VoiceAgent(AnthropicClient client, string repo)
                 case "git_status":
                     return (await DevTools.GitStatusAsync(repo, ct), false);
                 case "dotnet_build":
-                    string? project = use.Input.TryGetValue("project", out JsonElement p) && p.ValueKind == JsonValueKind.String
-                        ? p.GetString()
-                        : null;
+                    string? project = null;
+                    if (use.Input.TryGetValue("project", out JsonElement p) && p.ValueKind == JsonValueKind.String
+                        && p.GetString() is string requested && !string.IsNullOrWhiteSpace(requested))
+                    {
+                        (project, string? refused) = DevTools.ResolveProject(repo, requested);
+                        if (refused is not null) return (refused, true);
+                    }
                     return (await DevTools.DotnetBuildAsync(repo, project, ct), false);
                 case "dotnet_test":
                     return (await DevTools.DotnetTestAsync(repo, ct), false);
@@ -217,7 +221,7 @@ sealed class VoiceAgent(AnthropicClient client, string repo)
     /// The prompt asks for short replies; this makes sure of it. A reply too long to listen
     /// to goes to the screen, and only its first sentence is spoken.
     /// </summary>
-    static string GuardSpoken(string spoken, Action<string> screen)
+    internal static string GuardSpoken(string spoken, Action<string> screen)
     {
         string[] words = spoken.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (words.Length <= MaxSpokenWords) return spoken;
