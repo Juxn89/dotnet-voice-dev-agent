@@ -16,6 +16,10 @@ yet, so releases are listed by date.
   and the `git status`, build and TRX summaries. CI runs it.
 - Claude Code skills in `.claude/skills`: `run-agent` and `bump-images` (manual only), `add-tool` and
   `update-changelog`. Each one has explicit security rules.
+- `models/README.md` explains why the folder ships empty. It lists each Whisper model with its size, measured
+  speed and error rate, and gives the download command for bash and for Windows PowerShell, where `curl` is an
+  alias for `Invoke-WebRequest`.
+- `.env.template` lists the environment variables the agent reads.
 
 ### Changed
 
