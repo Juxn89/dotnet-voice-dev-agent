@@ -33,7 +33,8 @@ Both services listen only on `127.0.0.1`. Their addresses are hard-coded in `Pro
 
 1. **Startup** (once). With no repository argument the app exits with code 2. It exits with code 1 if
    `ANTHROPIC_API_KEY` is unset or a container does not answer: it synthesizes "ready" and, in voice mode,
-   transcribes half a second of silence.
+   transcribes half a second of silence. Then PortAudio is initialized and the default devices are checked: voice
+   mode needs a microphone, and without speakers the replies are only printed.
 2. **Capture.** Enter starts a PortAudio input stream, and the next Enter stops it. The audio callback only
    copies samples into an unbounded `Channel`, so it never blocks the audio thread. The samples become a WAV in
    Whisper's own format (16 kHz, mono, 16-bit), so nothing is resampled.
@@ -99,15 +100,22 @@ The rule is that failures stay inside the conversation, and the session keeps ru
 |---|---|---|
 | Startup | No repo argument | Usage message, exit code 2 |
 | Startup | No API key, containers down | Message, exit code 1 |
+| Startup | PortAudio fails to initialize; no microphone in voice mode | Message, exit code 1 (the second suggests `--text`) |
+| Startup | No speakers or headphones | Notice; replies are printed and Piper is not called |
+| Recording | `AudioDeviceException` (busy, unplugged, unsupported rate) | Printed; the loop waits for the next request |
 | Speech-to-text | HTTP error or timeout | Printed; the loop waits for the next request |
 | Model | `AnthropicException`, HTTP error, timeout | Turn dropped from history; says "I couldn't reach the model…" |
 | Model | Refusal | Turn dropped; says "I can't help with that one." |
 | Model | 8 steps without a final answer | Turn dropped; says "I went in circles on that one…" |
 | Tool | Timeout, missing executable (`Win32Exception`), I/O, bad input | Returned to the model as an `is_error` tool result |
 | Text-to-speech | HTTP error or timeout | Printed; the reply is not spoken |
+| Playback | `AudioDeviceException` | Printed; the reply is already on screen |
 
-Missing audio devices are the exception. `Microphone` and `Speaker` throw `InvalidOperationException`, which
-`Program.cs` does not catch, so the session ends. `PortAudio.Terminate` still runs in the `finally` block.
+`Microphone` and `Speaker` report every device failure as `AudioDeviceException`: a missing default device, or
+a `PortAudioException` from opening, starting or stopping a stream, wrapped. `AudioDevices.Detect` checks the
+default devices once at startup. PortAudio lists devices only in `Initialize`, so a device plugged in during a
+session is not seen until the next run. When voice-mode playback fails, the `Console.ReadLine` started for
+barge-in is still awaited, so it can't swallow the next Enter.
 
 ## Audio details
 

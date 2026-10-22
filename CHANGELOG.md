@@ -23,6 +23,9 @@ yet, so releases are listed by date.
 ### Fixed
 
 - `git_status` reported the behind count with a minus sign (`-1 behind`), because git writes it as `-<n>`.
+- A missing, busy or unplugged microphone or output device no longer ends the session with a stack trace.
+  Device failures are reported as `AudioDeviceException` and the session continues. At startup, a missing
+  microphone in voice mode exits with a hint to use `--text`. Without speakers, replies are printed only.
 
 ## 2026-10-22
 

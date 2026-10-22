@@ -40,7 +40,9 @@ All code is in `src/VoiceDevAgent/` (single project, no namespaces, top-level st
 
 - **`Program.cs`** — the session loop: record (or read a line), transcribe, `VoiceAgent.AskAsync`, synthesize,
   play. Handles barge-in (Enter during playback cancels it; that same keypress starts the next recording via
-  `alreadyPressed`). Every stage catches its own transport errors and continues the loop rather than exiting.
+  `alreadyPressed`). Every stage catches its own transport errors and continues the loop rather than exiting;
+  audio failures arrive as `AudioDeviceException` (PortAudio errors are wrapped in `Audio.cs`). Speakers are
+  optional (`AudioDevices`): without them replies are only printed.
   `Vocabulary` is Whisper's initial prompt (spelling hints).
 - **`VoiceAgent.cs`** — manual tool-use loop on `claude-haiku-5-5` via the official `Anthropic` NuGet SDK, max 8
   steps per turn, low effort, cached system prompt. Invariants that matter:
