@@ -104,6 +104,32 @@ public class SummarizeBuildTests
         Assert.Contains($"{targets}(42,7): error MSB4018: The task failed unexpectedly.", summary);
     }
 
+    public static TheoryData<string> RepoSpellings => new()
+    {
+        Repo,
+        Repo + Path.DirectorySeparatorChar,
+        Path.GetRelativePath(Environment.CurrentDirectory, Repo),
+        Path.Combine(Repo, "src", ".."),
+    };
+
+    [Theory]
+    [MemberData(nameof(RepoSpellings))]
+    public void Paths_are_relative_however_the_repo_was_spelled(string repo)
+    {
+        string output = $"{Source}(10,5): error CS1061: 'Foo' does not contain a definition for 'Bar' [{Project}]";
+
+        Assert.Contains("src/A.cs(10,5): error CS1061:", DevTools.SummarizeBuild(output, 1, repo));
+    }
+
+    [Fact]
+    public void A_sibling_directory_whose_name_starts_with_the_repo_is_outside_it()
+    {
+        string sibling = Path.Combine(Path.GetTempPath(), "app-evil", "B.cs");
+        string output = $"{sibling}(1,1): error CS0103: The name 'x' does not exist [{Project}]";
+
+        Assert.Contains($"{sibling}(1,1): error CS0103:", DevTools.SummarizeBuild(output, 1, Repo));
+    }
+
     [Fact]
     public void Caps_the_list_and_says_how_many_were_left_out()
     {

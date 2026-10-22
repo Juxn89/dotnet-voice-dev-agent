@@ -63,6 +63,18 @@ static partial class DevTools
 
     static readonly string[] ProjectExtensions = [".csproj", ".fsproj", ".vbproj", ".sln", ".slnx"];
 
+    // Case-insensitive where the file system usually is.
+    static readonly StringComparison PathComparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+        ? StringComparison.OrdinalIgnoreCase
+        : StringComparison.Ordinal;
+
+    /// <summary>
+    /// The repository as a full path ending in a separator, so "." works and "/src/app" does
+    /// not also match "/src/app-evil".
+    /// </summary>
+    static string RepoRoot(string repo) =>
+        Path.TrimEndingDirectorySeparator(Path.GetFullPath(repo)) + Path.DirectorySeparatorChar;
+
     /// <summary>
     /// The model picks the project, so the value is untrusted. ArgumentList stops shell
     /// injection but not option injection: "-bl:C:\x.binlog" or "-p:..." would reach dotnet
@@ -77,17 +89,14 @@ static partial class DevTools
         try
         {
             full = Path.GetFullPath(Path.Combine(repo, project));
-            root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(repo)) + Path.DirectorySeparatorChar;
+            root = RepoRoot(repo);
         }
         catch (ArgumentException)
         {
             return (null, $"\"{project}\" is not a valid path.");
         }
 
-        StringComparison comparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
-            ? StringComparison.OrdinalIgnoreCase
-            : StringComparison.Ordinal;
-        if (!full.StartsWith(root, comparison)) return (null, $"\"{project}\" is outside the repository.");
+        if (!full.StartsWith(root, PathComparison)) return (null, $"\"{project}\" is outside the repository.");
 
         if (!ProjectExtensions.Contains(Path.GetExtension(full), StringComparer.OrdinalIgnoreCase))
             return (null, $"\"{project}\" is not a project or solution ({string.Join(", ", ProjectExtensions)}).");
@@ -115,6 +124,8 @@ static partial class DevTools
 
     internal static string SummarizeBuild(string output, int exitCode, string repo)
     {
+        string root = RepoRoot(repo);
+
         // MSBuild emits each diagnostic inline and then again in the summary block.
         Dictionary<(string, int, int, string), Diagnostic> unique = [];
 
@@ -127,8 +138,8 @@ static partial class DevTools
 
             // Diagnostics anchored in the SDK's own .targets files are infrastructure
             // failures, not code failures. Keep them, but don't pretend they're yours.
-            string display = file.StartsWith(repo, StringComparison.OrdinalIgnoreCase)
-                ? Path.GetRelativePath(repo, file).Replace('\\', '/')
+            string display = file.StartsWith(root, PathComparison)
+                ? Path.GetRelativePath(root, file).Replace('\\', '/')
                 : file;
 
             Diagnostic diagnostic = new(
