@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 A push-to-talk .NET 10 console app: microphone → whisper.cpp (speech-to-text) → Claude tool-use loop → Piper
-(text-to-speech) → speaker. It is the companion code for a two-part dev.to article series (linked in README.md),
+(text-to-speech) → speaker. It is the companion code for a dev.to article series (linked in README.md),
 so code comments explain *why* and often reference "Part 1"/"Part 2". Keep that style when editing.
 
 ## Commands
@@ -18,12 +18,13 @@ docker compose up -d                           # whisper on 127.0.0.1:8080, pipe
 dotnet run --project src/VoiceDevAgent -- <repo path>          # voice mode
 dotnet run --project src/VoiceDevAgent -- <repo path> --text   # type requests, replies still spoken
 WHISPER_MODEL=base.en docker compose up -d     # bigger model (download models/ggml-base.en.bin first)
+node scripts/readme-assets.mjs                 # regenerate the README artwork in docs/readme (no dependencies)
 ```
 
 - Requires `ANTHROPIC_API_KEY` (checked at startup) and a Whisper model in `models/` (e.g. `ggml-tiny.en.bin`,
   download URL in README). Startup pings both containers and exits with a hint if they are down.
-- Tests (`tests/VoiceDevAgent.Tests`, xUnit) cover only pure logic: `IsBlank`, `GuardSpoken`, `Wav`, and the
-  `DevTools.Summarize*` parsers. Tools are split into "run the process" and a pure `Summarize*` function so the
+- Tests (`tests/VoiceDevAgent.Tests`, xUnit) cover only pure logic: `IsBlank`, `GuardSpoken`, `Wav`, the
+  `DevTools.Summarize*` parsers, `ReadFile`, `RepoRoot`, and `MemoryStore` against a temp folder. Tools are split into "run the process" and a pure `Summarize*` function so the
   parsing can be tested without git or dotnet; keep that split when adding a tool. The test project sees
   `internal` members via `InternalsVisibleTo`; test classes are in the global namespace like the app.
 - CI (`.github/workflows/ci.yml`) also validates that `docker compose config` resolves the whisper `command` to a
@@ -45,7 +46,7 @@ All code is in `src/VoiceDevAgent/` (single project, no namespaces, top-level st
   optional (`AudioDevices`): without them replies are only printed.
   `Vocabulary` is Whisper's initial prompt (spelling hints).
 - **`VoiceAgent.cs`** — manual tool-use loop on `claude-haiku-5-5` via the official `Anthropic` NuGet SDK, max 8
-  steps per turn, low effort, cached system prompt. Invariants that matter:
+  steps per turn, low effort, cached system prompt and history. Invariants that matter:
   - Every response block (including thinking/redacted thinking) is echoed back unchanged in the history.
   - All `tool_result`s for a step go in one user message.
   - On any exception, or when the step limit runs out, the whole turn is removed from `messages` so no
@@ -54,9 +55,18 @@ All code is in `src/VoiceDevAgent/` (single project, no namespaces, top-level st
     `GuardSpoken` enforces `MaxSpokenWords` (30) in code — longer replies go to the screen and only the first
     sentence is spoken.
   - `IsBlank` filters Whisper's `[BLANK_AUDIO]`/`(silence)` markers before any API call.
-  - Tool failures are returned to the model as `is_error` results, not thrown. The `SystemPrompt` describes a
-    specific repo (ClaudeReviewBot) and is meant to be customized.
-- **`DevTools.cs`** — the read-only tools (`git_status`, `dotnet_build`, `dotnet_test`) plus `RunAsync`. Tools
+  - Tool failures are returned to the model as `is_error` results, not thrown.
+  - The system prompt is built once per session and never changed mid-session (it would break the cache and,
+    on Haiku 5.5, invalidate replayed thinking blocks). The memory snapshot is a second system block; the
+    session date goes in the first user message. Never edit earlier messages: the history only grows at the end.
+  - A turn that ends with no text returns "Details are on screen." / "Okay.", never an empty reply.
+  - Nothing about a specific repository is hardcoded; the agent learns it into memory.
+- **`MemoryStore.cs`** — backend for Claude's memory tool (`memory_20250818`): one folder per repository under
+  LocalApplicationData, paths confined to `/memories`, size caps, atomic writes, a lock file, a credential
+  filter. Errors are returned as tool results. `AgentSetup` (in `VoiceAgent.cs`) holds the variants the Part 3
+  measurements compared; the app always uses `AgentSetup.Default`.
+- **`DevTools.cs`** and **`ReadFile.cs`** — the read-only tools (`git_status`, `dotnet_build`, `dotnet_test`,
+  `read_file`) plus `RunAsync`. `RepoRoot`/`WithSeparator` must handle a drive root (`R:\`). Tools
   condense raw output for the model: porcelain v2 parsing, deduplicated MSBuild diagnostics (errors first, capped
   at 50), TRX parsing for test failures with only own-code frames. The exit code is the verdict even if nothing
   parsed. `RunAsync` uses `ArgumentList` (never a concatenated command string; model-supplied

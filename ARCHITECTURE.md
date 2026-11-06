@@ -51,7 +51,14 @@ In `--text` mode, steps 2–3 are replaced by `Console.ReadLine`, and playback c
 
 ## The tool-use loop (`VoiceAgent`)
 
-- Model `claude-haiku-5-5`, `Effort.Low`, `MaxTokens` 4096, and the system prompt marked for prompt caching.
+- Model `claude-haiku-5-5`, `Effort.Low`, `MaxTokens` 4096. The system prompt and, with a top-level
+  `cache_control`, the conversation so far are cached, so each step of a turn reads the history from cache.
+- **The system prompt is frozen for the session.** It is built once in the constructor: the base prompt, the
+  memory rules, and a second block with the memory as it was when the session started. Memory written during
+  the session goes to disk and appears in the next session's prompt. Changing `system` mid-session would
+  discard the cache and, on Haiku 5.5, invalidate every thinking block already in the history.
+- **The history only grows at the end.** The session date goes in the session's first user message, not in the
+  system prompt, so a history carried over from an earlier day is still a prefix of the next request.
 - At most **8 steps** per turn. In each step, every `tool_use` block runs in order, and all `tool_result`s go
   back in **one** user message. A response without tool calls ends the turn.
 - **Every block is echoed back unchanged**, including thinking and redacted thinking blocks, because the API
@@ -63,6 +70,8 @@ In `--text` mode, steps 2–3 are replaced by `Console.ReadLine`, and playback c
   `(silence)`). If nothing is left, the turn is skipped before any API call.
 - **Refusals.** `stop_reason == "refusal"` raises `RefusalException`. The session answers "I can't help with
   that one."
+- **Never silent.** A turn can end on a tool call with no text. Spoken, that is silence, so `AskAsync` returns
+  "Details are on screen." when the turn showed something, and "Okay." otherwise.
 
 ### Two output channels
 
@@ -81,7 +90,9 @@ output to what the model needs:
 | `git_status` | `git status --porcelain=v2 --branch` | Branch, ahead/behind, up to 40 changed files (renames included) and 20 untracked |
 | `dotnet_build` | `dotnet build --nologo [project]` | Diagnostics deduplicated (MSBuild prints each one twice), errors first, at most 50, paths relative to the repo |
 | `dotnet_test` | `dotnet test --logger trx` into a temp directory | Pass/fail counts and up to 15 failures with their message and up to 3 frames outside `System.*` |
+| `read_file` | none (reads the file) | Up to 200 numbered lines of one file inside the repository. Refused: `.git`, `.env*` and `*.env`, key files and common private-key names, any path through a link or junction, 8.3 short names (`GIT~1`), binaries, files over 1 MB. A denylist, so not complete |
 | `show_on_screen` | none | Prints the text and returns `Shown.` |
+| `memory` | none (`MemoryStore`) | Claude's memory tool (`memory_20250818`): `view`, `create`, `str_replace`, `insert`, `delete`, `rename` under `/memories` |
 
 `DevTools.RunAsync` is the only place that starts a process:
 
@@ -96,6 +107,32 @@ output to what the model needs:
   expires.
 - **The exit code is the verdict.** A failed build with no parsed diagnostics is still reported as a failure,
   along with the last 10 output lines.
+
+## Memory (`MemoryStore`)
+
+Claude's memory tool is client-side: the model sends file commands against a virtual `/memories` directory and
+`MemoryStore` runs them on a real folder, one per repository, under `LocalApplicationData/VoiceDevAgent/memories`
+(named after the repository folder plus 8 hex digits of a SHA-256 of its full path). It is outside the
+repository, so a memory is never committed. Every path and every line of text comes from the model:
+
+- **Paths** must be `/memories` or start with `/memories/`. Parts that start with `.`, or contain `\`, `:`, `%`
+  or NUL, are refused before `Path.GetFullPath`, and the resolved path must still be inside the folder.
+- **Caps**: 4,000 characters per file, 6,000 in total. A write over either is refused with a message asking the
+  model to merge or delete entries; the old file is kept.
+- **Atomic writes** (temp file, then `File.Move` with overwrite) and an exclusive `.lock` file per command, so
+  two sessions on the same repository can't interleave a `str_replace`.
+- **No common credentials**: text matching common key formats (`sk-ant-`, `sk_live_`, `ghp_`, `github_pat_`,
+  `xox?-`, `AKIA`, `AIza`, JWTs, PEM private keys, `Password=`/`Pwd=` in a connection string) is never written.
+  It is a denylist, not a guarantee.
+- **Durable writes**: the temp file is flushed to disk before the move; orphaned temp files from a crash are
+  deleted when the store opens. A malformed `view_range` is an error result, not an exception.
+- **Errors are tool results**, never exceptions: the model sometimes sends `old_path` where `path` belongs and
+  retries after the error.
+
+The memory is preloaded into the system prompt at session start ("You do not need to view it again"), because
+the tool's own instruction otherwise makes the model spend two calls viewing it before every first answer. The
+prompt tells the agent what to save (what tools can't tell it) and to verify a memory with a tool before acting
+on it. In the Part 3 measurements, the agent saved build state anyway; the verify rule is what catches it.
 
 ## Error handling
 
