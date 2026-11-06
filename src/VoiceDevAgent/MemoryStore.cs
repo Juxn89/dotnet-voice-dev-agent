@@ -34,7 +34,16 @@ sealed partial class MemoryStore
         // A crash between writing a temp file and moving it leaves the temp file behind.
         // It is hidden, so nothing else would ever count or remove it.
         foreach (string orphan in Directory.EnumerateFiles(this.directory, ".tmp-*"))
-            File.Delete(orphan);
+        {
+            try
+            {
+                File.Delete(orphan);
+            }
+            catch (IOException)
+            {
+                // Not an orphan: another session's write is still in flight, and it moves its own file.
+            }
+        }
     }
 
     /// <summary>One folder per repository, under the user's local application data.</summary>
@@ -229,7 +238,9 @@ sealed partial class MemoryStore
 
     /// <summary>
     /// Two sessions on the same repository (one spoken, one typed) can edit the same file, and
-    /// str_replace is read-modify-write. Each command holds an exclusive lock file while it runs.
+    /// str_replace is read-modify-write. Each command holds an exclusive lock file while it runs,
+    /// so no command sees half of another's write. It does not merge the two sessions: each model
+    /// writes from what it last read, and a create replaces whatever the other saved since.
     /// </summary>
     FileStream Lock()
     {
@@ -239,6 +250,12 @@ sealed partial class MemoryStore
             try
             {
                 return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            }
+            catch (DirectoryNotFoundException) when (attempt < 40)
+            {
+                // The folder was deleted mid-session to make the agent forget: start an empty
+                // store instead of reporting the memory as busy.
+                Directory.CreateDirectory(directory);
             }
             catch (IOException) when (attempt < 40)
             {

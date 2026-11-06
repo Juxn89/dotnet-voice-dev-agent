@@ -90,7 +90,7 @@ output to what the model needs:
 | `git_status` | `git status --porcelain=v2 --branch` | Branch, ahead/behind, up to 40 changed files (renames included) and 20 untracked |
 | `dotnet_build` | `dotnet build --nologo [project]` | Diagnostics deduplicated (MSBuild prints each one twice), errors first, at most 50, paths relative to the repo |
 | `dotnet_test` | `dotnet test --logger trx` into a temp directory | Pass/fail counts and up to 15 failures with their message and up to 3 frames outside `System.*` |
-| `read_file` | none (reads the file) | Up to 200 numbered lines of one file inside the repository. Refused: `.git`, `.env*` and `*.env`, key files and common private-key names, any path through a link or junction, 8.3 short names (`GIT~1`), binaries, files over 1 MB. A denylist, so not complete |
+| `read_file` | none (reads the file) | Up to 200 numbered lines and 16,000 characters of one file inside the repository; a longer line is cut. Refused: `.git`, `.env*` and `*.env`, key files and common private-key names, any path with a colon (NTFS stream names such as `id_rsa::$DATA`), any path through a link or junction, 8.3 short names (`GIT~1`), binaries, files over 1 MB. A denylist, so not complete |
 | `show_on_screen` | none | Prints the text and returns `Shown.` |
 | `memory` | none (`MemoryStore`) | Claude's memory tool (`memory_20250818`): `view`, `create`, `str_replace`, `insert`, `delete`, `rename` under `/memories` |
 
@@ -120,7 +120,9 @@ repository, so a memory is never committed. Every path and every line of text co
 - **Caps**: 4,000 characters per file, 6,000 in total. A write over either is refused with a message asking the
   model to merge or delete entries; the old file is kept.
 - **Atomic writes** (temp file, then `File.Move` with overwrite) and an exclusive `.lock` file per command, so
-  two sessions on the same repository can't interleave a `str_replace`.
+  two sessions on the same repository can't interleave a `str_replace`. The lock does not merge them: each
+  model writes from what it last read, and a `create` replaces whatever the other session saved since. If the
+  folder is deleted mid-session, the next command starts an empty store.
 - **No common credentials**: text matching common key formats (`sk-ant-`, `sk_live_`, `ghp_`, `github_pat_`,
   `xox?-`, `AKIA`, `AIza`, JWTs, PEM private keys, `Password=`/`Pwd=` in a connection string) is never written.
   It is a denylist, not a guarantee.

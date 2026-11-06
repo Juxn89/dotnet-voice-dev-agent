@@ -133,9 +133,9 @@ const metricItems = [
 	['7 s', 'to listen to an answer', 'was 57–68 s with a prompt for the screen'],
 	['4 / 4', 'Mondays that recalled Friday', 'memory preloaded · Claude Haiku 5.5'],
 	['< $0.003', 'for a morning of questions', 'three questions, tools and memory included'],
-	['103', 'tests, no audio or API key', 'xUnit · no Docker, no network'],
+	['108', 'tests, no audio or API key', 'xUnit · no Docker, no network'],
 ];
-const metricsAlt = '7 seconds to listen to an answer, down from 57 to 68 with a prompt written for the screen. 4 of 4 Monday sessions recalled what was left from Friday, with memory preloaded, on Claude Haiku 5.5. Under 0.003 US dollars for a morning of three questions, tools and memory included. 103 tests that need no audio device, API key, Docker or network.';
+const metricsAlt = '7 seconds to listen to an answer, down from 57 to 68 with a prompt written for the screen. 4 of 4 Monday sessions recalled what was left from Friday, with memory preloaded, on Claude Haiku 5.5. Under 0.003 US dollars for a morning of three questions, tools and memory included. 108 tests that need no audio device, API key, Docker or network.';
 
 function metrics(name) {
 	const t = themes[name];

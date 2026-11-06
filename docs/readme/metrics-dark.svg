@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="150" viewBox="0 0 1280 150" role="img" aria-label="7 seconds to listen to an answer, down from 57 to 68 with a prompt written for the screen. 4 of 4 Monday sessions recalled what was left from Friday, with memory preloaded, on Claude Haiku 5.5. Under 0.003 US dollars for a morning of three questions, tools and memory included. 103 tests that need no audio device, API key, Docker or network.">
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="150" viewBox="0 0 1280 150" role="img" aria-label="7 seconds to listen to an answer, down from 57 to 68 with a prompt written for the screen. 4 of 4 Monday sessions recalled what was left from Friday, with memory preloaded, on Claude Haiku 5.5. Under 0.003 US dollars for a morning of three questions, tools and memory included. 108 tests that need no audio device, API key, Docker or network.">
 <defs>
 	<linearGradient id="brand" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fb7185"/><stop offset=".55" stop-color="#be123c"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
 	<linearGradient id="metric" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
@@ -23,7 +23,7 @@
 		<text y="116" text-anchor="middle" font-family="'Segoe UI', Inter, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif" font-size="13.5" fill="#a8999f">three questions, tools and memory included</text>
 	</g><line x1="640" y1="36" x2="640" y2="114" stroke="#33252b"/>
 	<g transform="translate(1120 0)">
-		<text y="64" text-anchor="middle" font-family="'Segoe UI', Inter, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif" font-size="40" font-weight="800" letter-spacing="-.02em" fill="url(#metric)">103</text>
+		<text y="64" text-anchor="middle" font-family="'Segoe UI', Inter, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif" font-size="40" font-weight="800" letter-spacing="-.02em" fill="url(#metric)">108</text>
 		<text y="94" text-anchor="middle" font-family="'Segoe UI', Inter, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif" font-size="16" font-weight="600" fill="#f8f1f3">tests, no audio or API key</text>
 		<text y="116" text-anchor="middle" font-family="'Segoe UI', Inter, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif" font-size="13.5" fill="#a8999f">xUnit · no Docker, no network</text>
 	</g><line x1="960" y1="36" x2="960" y2="114" stroke="#33252b"/>
