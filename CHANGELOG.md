@@ -7,8 +7,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-## [1.1.0] - 2026-10-22
-
 ### Added
 
 - Memory across sessions, the companion code for *Building a .NET Dev Agent, Part 3: Make It Remember You*.
@@ -25,6 +23,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `scripts/readme-assets.mjs` (Node, no dependencies) into `docs/readme/`, plus a showcase of a real Monday
   session from the Part 3 measurements, rendered from `docs/readme/showcase.html`.
 
+### Changed
+
+- The system prompt no longer describes the ClaudeReviewBot repository; the agent keeps what it learns about a
+  repository in memory.
+- The system prompt is built once per session, and the session date moved to the first user message, so the
+  history only ever grows at the end (Haiku 5.5 rejects replayed thinking blocks after an earlier turn changes).
+- The conversation is cached with a top-level `cache_control`, not only the system prompt.
+
+### Fixed
+
+- A repository at a drive root (`R:\`) refused every project path and every file as outside the repository:
+  the root was built as `TrimEndingDirectorySeparator(path) + separator`, and `TrimEndingDirectorySeparator`
+  leaves a root alone, so `R:\` became `R:\\`.
+- A turn that ended on a tool call with no text returned an empty reply, which the voice loop played as silence.
+  It now says "Details are on screen." or "Okay.".
+
+
+## [1.1.0] - 2026-10-22
+
+### Added
+
 - `CLAUDE.md` with build and run commands and an architecture summary for Claude Code.
 - `ARCHITECTURE.md` describing the voice loop, the tool-use loop and the reasoning behind its design.
 - `CHANGELOG.md`.
@@ -39,11 +58,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- The system prompt no longer describes the ClaudeReviewBot repository; the agent keeps what it learns about a
-  repository in memory.
-- The system prompt is built once per session, and the session date moved to the first user message, so the
-  history only ever grows at the end (Haiku 5.5 rejects replayed thinking blocks after an earlier turn changes).
-- The conversation is cached with a top-level `cache_control`, not only the system prompt.
 - `DevTools` parsing moved into pure `SummarizeStatus`, `SummarizeBuild` and `SummarizeTrx` functions so it can
   be tested without running processes.
 
@@ -55,11 +69,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
-- A repository at a drive root (`R:\`) refused every project path and every file as outside the repository:
-  the root was built as `TrimEndingDirectorySeparator(path) + separator`, and `TrimEndingDirectorySeparator`
-  leaves a root alone, so `R:\` became `R:\\`.
-- A turn that ended on a tool call with no text returned an empty reply, which the voice loop played as silence.
-  It now says "Details are on screen." or "Okay.".
 - Without speakers or headphones, the Piper container is no longer required at startup. Its check now runs after
   the devices are detected, and only when there is an output device.
 - Build diagnostics inside the repository are shown relative to it even when the repository path was given as
