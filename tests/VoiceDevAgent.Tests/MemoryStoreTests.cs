@@ -149,6 +149,18 @@ public sealed class MemoryStoreTests : IDisposable
         Assert.False(File.Exists(Path.Combine(folder, ".tmp-orphan")));
     }
 
+    [Fact]
+    public void A_folder_deleted_mid_session_starts_an_empty_store()
+    {
+        Run(new { command = "create", path = "/memories/project.md", file_text = "old\n" });
+        Directory.Delete(folder, recursive: true);
+
+        (string content, bool isError) = Run(new { command = "create", path = "/memories/project.md", file_text = "new\n" });
+
+        Assert.False(isError, content);
+        Assert.Equal("new\n", File.ReadAllText(Path.Combine(folder, "project.md")));
+    }
+
     // Built at run time, so the source never holds a string a secret scanner would flag. Written
     // as literals, the Google-shaped one opened a GitHub secret-scanning alert on a fake key.
     public static TheoryData<string> CredentialShapes => new()
@@ -226,9 +238,34 @@ public sealed class ReadFileTests : IDisposable
     [InlineData("GIT~1/config")]
     [InlineData("deploy/production.env")]
     [InlineData("keys/id_ed25519")]
+    [InlineData("keys/id_ed25519::$DATA")]
+    [InlineData(".git::$INDEX_ALLOCATION/config")]
     [InlineData("src/Missing.cs")]
     public void Refuses_what_it_should_not_read(string path) =>
         Assert.True(DevTools.ReadFile(repo, path, null, null).IsError);
+
+    [Fact]
+    public void Cuts_a_line_longer_than_the_character_budget()
+    {
+        File.WriteAllText(Path.Combine(repo, "bundle.min.js"), new string('x', 40_000) + "\n" + new string('y', 40_000));
+
+        (string content, bool isError) = DevTools.ReadFile(repo, "bundle.min.js", null, null);
+
+        Assert.False(isError);
+        Assert.StartsWith("bundle.min.js, lines 1-1 of 2\n", content);
+        Assert.EndsWith(" [line cut at 16000 characters]\n", content);
+        Assert.True(content.Length < 16_100, $"{content.Length} characters");
+    }
+
+    [Fact]
+    public void Stops_before_the_line_that_would_pass_the_character_budget()
+    {
+        File.WriteAllLines(Path.Combine(repo, "wide.txt"), Enumerable.Repeat(new string('w', 100), 200));
+
+        (string content, _) = DevTools.ReadFile(repo, "wide.txt", null, null);
+
+        Assert.StartsWith("wide.txt, lines 1-148 of 200\n", content);
+    }
 
     [Fact]
     public void Refuses_a_path_through_a_linked_folder()

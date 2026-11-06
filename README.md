@@ -20,7 +20,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/readme/metrics-dark.svg">
-  <img src="docs/readme/metrics-light.svg" alt="7 seconds to listen to an answer, down from 57 to 68 with a prompt written for the screen · 4 of 4 Monday sessions recalled what was left from Friday, memory preloaded, Claude Haiku 5.5 · under $0.003 for a morning of three questions, tools and memory included · 103 tests that need no audio device, API key, Docker or network" width="100%">
+  <img src="docs/readme/metrics-light.svg" alt="7 seconds to listen to an answer, down from 57 to 68 with a prompt written for the screen · 4 of 4 Monday sessions recalled what was left from Friday, memory preloaded, Claude Haiku 5.5 · under $0.003 for a morning of three questions, tools and memory included · 108 tests that need no audio device, API key, Docker or network" width="100%">
 </picture>
 
 <br><br>
@@ -135,7 +135,7 @@ flowchart LR
     </td>
     <td width="33%" valign="top">
       <img src="docs/readme/icon-tests.svg" width="44" alt=""><br>
-      <b>103 tests</b><br>
+      <b>108 tests</b><br>
       <sub>The parsers, guards, WAV handling and the memory store, with no audio, Docker or API key.</sub>
     </td>
   </tr>
