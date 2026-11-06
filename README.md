@@ -4,11 +4,12 @@ A .NET 10 dev agent you talk to. Hold Enter, ask *"why is the build red?"*, and 
 diagnostics on screen, and answers out loud in one or two sentences.
 
 Speech-to-text and text-to-speech run locally ([whisper.cpp](https://github.com/ggml-org/whisper.cpp) and
-[Piper](https://github.com/OHF-Voice/piper1-gpl), in Docker). The agent is Claude Haiku 5.5 with three read-only
-tools: `git_status`, `dotnet_build`, `dotnet_test`, plus `show_on_screen` for anything too long or too precise
-to listen to.
+[Piper](https://github.com/OHF-Voice/piper1-gpl), in Docker). The agent is Claude Haiku 5.5 with four read-only
+tools: `git_status`, `dotnet_build`, `dotnet_test` and `read_file`, plus `show_on_screen` for anything too long
+or too precise to listen to. It remembers what you tell it about each repository between sessions, with
+Claude's memory tool backed by a folder on your machine.
 
-This is the companion code for a two-part series. The articles explain every design decision and the
+This is the companion code for a series. The articles explain every design decision and the
 measurements behind it:
 
 - **Part 1: Teach It Your Actual Workflow**:
@@ -55,9 +56,11 @@ To use a bigger model: `WHISPER_MODEL=base.en docker compose up -d` (after downl
 
 ## Make it yours
 
-The system prompt in [`VoiceAgent.cs`](src/VoiceDevAgent/VoiceAgent.cs) describes the repository the articles
-used (ClaudeReviewBot). Replace that paragraph with your own projects and rules: which project matters, which
-warnings are noise. That is where the agent learns your workflow.
+Tell it. "The core project is the one I care about", "CS1591 is noise": the agent saves facts like these to its
+memory and loads them at the start of the next session. The memory is one folder per repository under your
+local application data (`%LOCALAPPDATA%\VoiceDevAgent\memories` on Windows, `~/.local/share/VoiceDevAgent/memories`
+on Linux), outside the repository so it is never committed. Read it, edit it, or delete the folder to make the
+agent forget.
 
 The `Vocabulary` constant in [`Program.cs`](src/VoiceDevAgent/Program.cs) is Whisper's initial prompt. Put your
 project's type names, error codes and jargon there. It fixes exactly the words speech-to-text breaks most.

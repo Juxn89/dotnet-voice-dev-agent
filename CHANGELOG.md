@@ -9,6 +9,17 @@ yet, so releases are listed by date.
 
 ### Added
 
+- Memory across sessions, the companion code for *Building a .NET Dev Agent, Part 3: Make It Remember You*.
+  `MemoryStore` backs Claude's memory tool (`memory_20250818`) with one folder per repository under the user's
+  local application data, outside the repository. Paths are confined to `/memories`, files are capped at 4,000
+  characters and the store at 6,000, writes are atomic and locked, and credential-shaped text is refused.
+- The memory is loaded into the system prompt when a session starts, and the prompt tells the agent what to save
+  and to check a memory with a tool before acting on it.
+- `read_file`, a read-only tool: up to 200 numbered lines of a file inside the repository. It refuses `.git`,
+  `.env*` and `*.env`, key files and common private-key names, any path through a link or junction, 8.3 short
+  names, binaries and files over 1 MB.
+- Tests for `MemoryStore`, `read_file` and the repository root.
+
 - `CLAUDE.md` with build and run commands and an architecture summary for Claude Code.
 - `ARCHITECTURE.md` describing the voice loop, the tool-use loop and the reasoning behind its design.
 - `CHANGELOG.md`.
@@ -23,6 +34,11 @@ yet, so releases are listed by date.
 
 ### Changed
 
+- The system prompt no longer describes the ClaudeReviewBot repository; the agent keeps what it learns about a
+  repository in memory.
+- The system prompt is built once per session, and the session date moved to the first user message, so the
+  history only ever grows at the end (Haiku 5.5 rejects replayed thinking blocks after an earlier turn changes).
+- The conversation is cached with a top-level `cache_control`, not only the system prompt.
 - `DevTools` parsing moved into pure `SummarizeStatus`, `SummarizeBuild` and `SummarizeTrx` functions so it can
   be tested without running processes.
 
@@ -34,6 +50,11 @@ yet, so releases are listed by date.
 
 ### Fixed
 
+- A repository at a drive root (`R:\`) refused every project path and every file as outside the repository:
+  the root was built as `TrimEndingDirectorySeparator(path) + separator`, and `TrimEndingDirectorySeparator`
+  leaves a root alone, so `R:\` became `R:\\`.
+- A turn that ended on a tool call with no text returned an empty reply, which the voice loop played as silence.
+  It now says "Details are on screen." or "Okay.".
 - Without speakers or headphones, the Piper container is no longer required at startup. Its check now runs after
   the devices are detected, and only when there is an output device.
 - Build diagnostics inside the repository are shown relative to it even when the repository path was given as

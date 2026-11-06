@@ -72,8 +72,15 @@ static partial class DevTools
     /// The repository as a full path ending in a separator, so "." works and "/src/app" does
     /// not also match "/src/app-evil".
     /// </summary>
-    static string RepoRoot(string repo) =>
-        Path.TrimEndingDirectorySeparator(Path.GetFullPath(repo)) + Path.DirectorySeparatorChar;
+    internal static string RepoRoot(string repo) => WithSeparator(Path.GetFullPath(repo));
+
+    /// <summary>
+    /// Appends a separator only when one is missing. TrimEndingDirectorySeparator leaves a
+    /// root alone, so trimming and appending turned a repository at "R:\" into "R:\\", and
+    /// every path inside it was refused as outside the repository.
+    /// </summary>
+    internal static string WithSeparator(string path) =>
+        Path.EndsInDirectorySeparator(path) ? path : path + Path.DirectorySeparatorChar;
 
     /// <summary>
     /// The model picks the project, so the value is untrusted. ArgumentList stops shell

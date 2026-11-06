@@ -263,3 +263,23 @@ public sealed class ResolveProjectTests : IDisposable
     public void The_refused_value_never_comes_back_as_a_path() =>
         Assert.Null(DevTools.ResolveProject(repo, "-bl:build.binlog").Path);
 }
+
+public class RepoRootTests
+{
+    [Fact]
+    public void A_repository_at_a_drive_root_gets_one_separator()
+    {
+        string driveRoot = Path.GetPathRoot(Path.GetTempPath())!;   // "C:\\" on Windows, "/" elsewhere
+
+        Assert.Equal(driveRoot, DevTools.RepoRoot(driveRoot));
+    }
+
+    [Fact]
+    public void A_repository_in_a_folder_gets_one_separator_however_it_is_spelled()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "repo");
+
+        Assert.Equal(folder + Path.DirectorySeparatorChar, DevTools.RepoRoot(folder));
+        Assert.Equal(folder + Path.DirectorySeparatorChar, DevTools.RepoRoot(folder + Path.DirectorySeparatorChar));
+    }
+}

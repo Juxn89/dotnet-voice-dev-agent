@@ -66,7 +66,11 @@ try
         return 1;
     }
 
-    VoiceAgent agent = new(new AnthropicClient(), repo);
+    // One memory per repository, outside it, so it is never committed. Delete the folder to
+    // make the agent forget.
+    MemoryStore memory = MemoryStore.ForRepository(repo);
+    Console.WriteLine(memory.Snapshot().Length == 0 ? "No memory yet for this repository." : "Memory loaded for this repository.");
+    VoiceAgent agent = new(new AnthropicClient(), repo, memory, DateOnly.FromDateTime(DateTime.Now));
     Console.WriteLine(typed ? "Type a request, empty line to quit." : "Enter to talk, Enter again to stop. Ctrl+C to quit.");
     bool alreadyPressed = false;
 
