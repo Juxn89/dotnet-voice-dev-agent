@@ -18,6 +18,7 @@ docker compose up -d                           # whisper on 127.0.0.1:8080, pipe
 dotnet run --project src/VoiceDevAgent -- <repo path>          # voice mode
 dotnet run --project src/VoiceDevAgent -- <repo path> --text   # type requests, replies still spoken
 WHISPER_MODEL=base.en docker compose up -d     # bigger model (download models/ggml-base.en.bin first)
+node scripts/readme-assets.mjs                 # regenerate the README artwork in docs/readme (no dependencies)
 ```
 
 - Requires `ANTHROPIC_API_KEY` (checked at startup) and a Whisper model in `models/` (e.g. `ggml-tiny.en.bin`,
