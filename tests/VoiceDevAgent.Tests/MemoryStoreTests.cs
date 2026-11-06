@@ -149,15 +149,22 @@ public sealed class MemoryStoreTests : IDisposable
         Assert.False(File.Exists(Path.Combine(folder, ".tmp-orphan")));
     }
 
+    // Built at run time, so the source never holds a string a secret scanner would flag. Written
+    // as literals, the Google-shaped one opened a GitHub secret-scanning alert on a fake key.
+    public static TheoryData<string> CredentialShapes => new()
+    {
+        "key: sk-ant-" + new string('x', 20),
+        "token ghp_" + new string('x', 30),
+        "-----BEGIN RSA PRIVATE" + " KEY-----",
+        "Server=db;User Id=sa;Password=" + "not-a-real-one;",
+        "slack xoxb-" + new string('1', 12),
+        "stripe sk_live_" + new string('x', 16),
+        "google AIza" + new string('x', 35),
+        "bearer eyJ" + new string('x', 12) + ".eyJ" + new string('y', 12) + ".sig",
+    };
+
     [Theory]
-    [InlineData("key: sk-ant-api03-abcdefghijklmnop")]
-    [InlineData("token ghp_abcdefghijklmnopqrstuvwxyz0123")]
-    [InlineData("-----BEGIN RSA PRIVATE KEY-----")]
-    [InlineData("Server=db;User Id=sa;Password=Hunter2!;")]
-    [InlineData("slack xoxb-1234567890-abcdefghij")]
-    [InlineData("stripe sk_live_abcdefghijklmnop")]
-    [InlineData("google AIzaSyA1234567890abcdefghijklmnopqrstuv")]
-    [InlineData("bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.sig")]
+    [MemberData(nameof(CredentialShapes))]
     public void Credentials_are_never_written(string text)
     {
         (_, bool isError) = Run(new { command = "create", path = "/memories/project.md", file_text = text });
