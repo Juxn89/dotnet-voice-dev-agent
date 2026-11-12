@@ -38,8 +38,9 @@ can at worst start a build. Speech runs locally in Docker; the agent is Claude H
 > ([en español](https://dev.to/jgomezdev/construye-un-agente-de-desarrollo-net-parte-1-ensenale-tu-flujo-de-trabajo-real-3580)),
 > [Part 2: Give It a Voice](https://dev.to/jgomezdev/building-a-net-dev-agent-part-2-give-it-a-voice-1ef3)
 > ([en español](https://dev.to/jgomezdev/construye-un-agente-de-desarrollo-net-parte-2-dale-voz-53an)),
-> and *Part 3: Make It Remember You*, which publishes on November 10, 2026. The failures are in there
-> too.
+> and [Part 3: Make It Remember You](https://dev.to/jgomezdev/building-a-net-dev-agent-part-3-make-it-remember-you-293e)
+> ([en español](https://dev.to/jgomezdev/construye-un-agente-de-desarrollo-net-parte-3-haz-que-te-recuerde-2980)).
+> The failures are in there too.
 
 <p align="center">
   <picture>
